@@ -1,0 +1,10 @@
+project_name                    = "music-vault"
+environment                     = "dev"
+aws_region                      = "us-east-2"
+cognito_domain_prefix           = "replace-with-a-unique-prefix"
+allowed_origins                  = ["http://localhost:5173"]
+enable_point_in_time_recovery    = false
+log_retention_days               = 7
+enable_api_access_logs            = false
+enable_alarms                     = false
+alarm_email                      = ""
