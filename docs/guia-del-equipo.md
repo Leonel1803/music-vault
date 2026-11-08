@@ -91,12 +91,12 @@ Carpeta `backend/src/`:
 
 **Paginación:** cada respuesta trae un `cursor` opaco. Para la siguiente página, el cliente lo reenvía. Así no cargamos miles de registros de golpe.
 
-**Pruebas:** hay 13 pruebas unitarias (`python -m unittest discover -s tests -v`, desde `backend/`).
+**Pruebas:** las pruebas unitarias se ejecutan con `python -m unittest discover -s tests -v`, desde `backend/`.
 
 ## 7. El frontend (React + TypeScript)
 
 Carpeta `frontend/src/`:
-- `context/AuthContext.tsx`: maneja sesión y login con Cognito (librería Amplify).
+- `context/AuthContext.tsx`: maneja sesión y login con Cognito usando la biblioteca JavaScript de Amplify; el hosting sigue siendo S3 + CloudFront, no Amplify Hosting.
 - `services/api.ts`: único lugar que habla con la API y agrega el token.
 - `components/Catalog.tsx`, `Browse.tsx` (artistas, álbumes, detalle de canción con calificación y reseñas) y `PersonalLibrary.tsx`: pantallas; `router.ts`: navegación por hash.
 
@@ -116,7 +116,7 @@ La configuración (URL de la API, IDs de Cognito) viene de variables `VITE_*`. S
 
 Decisiones tomadas para que cueste casi nada:
 - Todo es pago por uso (Lambda, DynamoDB on-demand, HTTP API).
-- Solo 2 Lambdas agrupando casos de uso.
+- Tres Lambdas con permisos separados por caso de uso.
 - Logs a 7 días; alarmas y logs de acceso de API **apagados por defecto**.
 - Sin Point-in-Time Recovery en DynamoDB.
 - Índice con proyección parcial (menos almacenamiento).
@@ -140,14 +140,13 @@ Ciclo: `terraform plan` (muestra qué va a crear) → `terraform apply` (lo crea
 
 **Desviación consciente:** el requisito pide una Lambda por caso de uso; agrupamos en dos para reducir costo y complejidad. Se justifica en [arquitectura.md](./arquitectura.md).
 
-## 12. Guion sugerido (≈ 8 minutos, 4 personas)
+## 12. Guion sugerido (≈ 8 minutos, 3 personas)
 
 | Parte | Quién | Contenido | Tiempo |
 |---|---|---|---|
-| 1 | Persona A | Problema, idea y vista general (sección 1 y 2) | 1.5 min |
-| 2 | Persona B | Frontend, login con Cognito y JWT (secciones 4.2, 7) | 2 min |
-| 3 | Persona C | API, Lambda y DynamoDB, modelo de datos (4.1, 4.3, 5, 6) | 2.5 min |
-| 4 | Persona D | Terraform, seguridad, costos y pendientes (8 a 11) + demo | 2 min |
+| 1 | Persona A | Problema, idea, arquitectura y frontend/login (secciones 1–3, 4.2 y 7) | 2.5 min |
+| 2 | Persona B | API, Lambda, DynamoDB, favoritos, biblioteca, calificaciones y reseñas (4.1, 4.3, 5 y 6) | 3 min |
+| 3 | Persona C | Terraform, seguridad, costos y pendientes (8–11) + demo | 2.5 min |
 
 **Demo recomendada:** abrir la app, buscar una canción, filtrar por género, iniciar sesión, agregar un favorito y recargar para mostrar que persiste. Opcional: mostrar `GET /me/favorites` sin token y que responda `401`.
 

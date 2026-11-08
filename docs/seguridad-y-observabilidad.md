@@ -8,7 +8,7 @@
 - Las entradas externas se validan en backend: forma de IDs, longitud, filtros, límites, cursores y JSON.
 - El handler devuelve errores genéricos; logs no incluyen tokens, credenciales, email, reseñas ni payloads sensibles.
 - Roles IAM de Lambda con mínimo privilegio y acceso solo a tabla/acciones necesarias.
-- S3 sin acceso público; CloudFront OAC; TLS mínimo y redirección HTTP→HTTPS.
+- S3 sin acceso público; CloudFront OAC; el comportamiento de caché redirige HTTP a HTTPS. La distribución usa el certificado predeterminado `*.cloudfront.net`; AWS gestiona su política TLS y esta configuración no permite fijar aquí una versión mínima. Para controlar la política TLS se requiere un dominio alternativo y un certificado configurado en CloudFront.
 - No guardar secretos en Git, variables `VITE_*`, logs, imágenes ni estado Terraform en texto plano. Usar AWS Secrets Manager/Parameter Store cuando se requiera un secreto de servidor.
 - Aplicar `terraform plan` y revisión de seguridad antes de `apply`. El proyecto escolar utiliza estado Terraform local para evitar recursos recurrentes de almacenamiento/bloqueo: mantenerlo privado, respaldarlo de forma segura y no eliminarlo mientras existan recursos. Si varias personas administran la infraestructura, migrar a backend remoto cifrado, versionado y bloqueado.
 
@@ -24,9 +24,9 @@ Métricas base recomendadas:
 - Throttling y consumo de lectura/escritura DynamoDB.
 - Tasa de login fallido de Cognito.
 
-Alarmas iniciales: errores Lambda/API 5xx sostenidos, throttles, latencia por encima del umbral acordado y falta de datos de métricas críticas. Los umbrales y notificaciones dependen del entorno y deben configurarse antes de producción.
+En esta configuración, si `enable_alarms` se activa, se crean alarmas de errores Lambda que se disparan con al menos un error en un periodo de 5 minutos (`evaluation_periods = 1`). No se configura una alarma de throttles ni de API 5xx. Las alarmas están apagadas por defecto.
 
-Métricas propias (EMF, namespace `MusicVault`, dimensión `Service`): `Requests`, `ServerErrors`, `LatencyMs` y `Contributions` (calificaciones y reseñas). Son pocas para quedar dentro de la capa gratuita. El dashboard `music-vault-dev-overview` (Terraform, módulo `cloudwatch`) muestra Lambda, API Gateway, DynamoDB y estas métricas.
+Métricas propias (EMF, namespace `MusicVault`, dimensión `Service`): `Requests`, `ServerErrors`, `LatencyMs` y `Contributions` (calificaciones y reseñas). El dashboard `music-vault-dev-overview` (Terraform, módulo `cloudwatch`) se crea siempre, independientemente de `enable_alarms`; muestra Lambda, API Gateway, DynamoDB y estas métricas.
 
 ## Privacidad y retención
 

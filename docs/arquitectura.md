@@ -2,13 +2,13 @@
 
 ## Objetivo y alcance
 
-La aplicación es un catálogo de artistas, álbumes y canciones con búsqueda, filtros y una biblioteca privada por usuario. El MVP cubre el camino de lectura del catálogo y las operaciones de favoritos/biblioteca; autenticación delegada a Cognito. Calificaciones y reseñas se mantienen como requisito trazado, pero se implementarán en una fase posterior.
+La aplicación es un catálogo de artistas, álbumes y canciones con búsqueda, filtros, páginas de detalle y colecciones privadas por usuario. Cognito autentica las operaciones privadas. Los usuarios pueden guardar favoritos y canciones en su biblioteca, calificar canciones y publicar una reseña por canción.
 
 ## Componentes y flujo
 
 1. El navegador descarga la SPA desde CloudFront.
 2. CloudFront entrega los archivos desde un bucket S3 privado mediante Origin Access Control. HTTPS es obligatorio.
-3. La SPA usa Cognito Hosted UI/OAuth para registro e inicio de sesión. Amplify administra la sesión y entrega el access token.
+3. La SPA usa Cognito Hosted UI/OAuth para registro e inicio de sesión. La biblioteca JavaScript de Amplify administra la sesión y entrega el access token; el hosting no usa Amplify Hosting.
 4. El cliente llama a API Gateway HTTP API. El JWT authorizer de Cognito valida issuer, audiencia y firma antes de permitir rutas privadas.
 5. API Gateway enruta al handler Lambda Python correspondiente. Los handlers validan el evento y el identificador de usuario procede exclusivamente de los claims validados por el authorizer.
 6. Lambda consulta o modifica DynamoDB con permisos IAM limitados a la tabla del entorno.
@@ -50,8 +50,8 @@ La aplicación es un catálogo de artistas, álbumes y canciones con búsqueda, 
 
 ## Evolución
 
-1. MVP: catálogo, búsqueda por prefijo, filtro de género, autenticación, favoritos y biblioteca personal.
-2. Interacción social: ratings agregados, reseñas paginadas y moderación básica.
+1. MVP implementado: catálogo, búsqueda por prefijo, filtro de género, autenticación, favoritos, biblioteca personal, calificaciones y reseñas.
+2. Mejoras de contenido: moderación de reseñas, administración de catálogo y búsqueda de texto completo.
 3. Producción: pipeline CI/CD, protección de despliegues, alarmas/SLO, pruebas de carga, recuperación y escaneo de dependencias.
 
 ## Diagrama

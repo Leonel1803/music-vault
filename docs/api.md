@@ -81,4 +81,4 @@ PUT /me/favorites/song-123
 Authorization: Bearer <token>
 ```
 
-Para marcar/quitar favoritos y biblioteca, el cuerpo de `PUT` es vacío. Una futura extensión de ratings/reviews deberá especificar límites, moderación, orden y paginación antes de exponerse.
+Para marcar/quitar favoritos y biblioteca, el cuerpo de `PUT` es vacío. La escritura de calificación y de su agregado son operaciones DynamoDB separadas, por lo que un fallo entre ambas puede dejar el promedio y conteo temporalmente inconsistentes; véase [modelo de datos](./modelo-de-datos.md).

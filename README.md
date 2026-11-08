@@ -4,15 +4,9 @@ Aplicación web para descubrir música y administrar una biblioteca personal. La
 
 ## Alcance actual
 
-Este repositorio parte de cero. La primera entrega establece el esqueleto ejecutable y documentado para el MVP:
+La aplicación implementa catálogo de artistas, álbumes y canciones; búsqueda por prefijo y filtro por género; páginas de detalle; favoritos y biblioteca personal; y calificaciones y reseñas por usuario. El frontend está construido con React/TypeScript. Cognito autentica las rutas privadas y el backend Python expone la API mediante API Gateway y tres Lambdas (`catalog`, `interactions`, `library`).
 
-- Frontend React/TypeScript con búsqueda y filtro de catálogo, y vistas explícitas de carga, error y vacío.
-- API en Python para consultar artistas, álbumes y canciones, además de gestionar favoritos y biblioteca personal.
-- Autenticación Cognito para rutas privadas; las rutas públicas de catálogo no requieren sesión.
-- Terraform como infraestructura declarativa.
-- Contratos, decisiones, configuración, pruebas y requisitos pendientes documentados en [`docs/`](./docs/).
-
-La implementación inicial no afirma que todas las funciones del curso ya estén terminadas. La matriz de [`docs/requisitos.md`](./docs/requisitos.md) distingue lo implementado de lo pendiente y define las siguientes fases. En particular, calificaciones y reseñas quedan para la siguiente iteración; la búsqueda se apoya en índices de DynamoDB y no pretende reemplazar un motor de búsqueda de texto completo.
+La infraestructura AWS está definida con Terraform. La matriz de [`docs/requisitos.md`](./docs/requisitos.md) registra el estado de cada requisito. La búsqueda usa índices de DynamoDB y es por prefijo; no sustituye un motor de búsqueda de texto completo. La moderación de reseñas, los respaldos y las alarmas operativas siguen fuera del alcance de la configuración escolar de bajo costo.
 
 ## Estructura
 

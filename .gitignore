@@ -6,6 +6,8 @@
 *.tfstate
 *.tfstate.*
 *.tfbackend
+tfplan
+*.tfplan
 .terraform/
 
 # JavaScript

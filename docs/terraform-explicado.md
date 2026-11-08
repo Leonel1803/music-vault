@@ -63,7 +63,7 @@ Aquí no se crean recursos pesados; se **conectan módulos** pasando las salidas
 - `locals.name = "music-vault-dev"`: un nombre base que se reutiliza para que todo tenga nombres coherentes.
 - Orden implícito: Terraform deduce las dependencias. DynamoDB y Cognito se crean primero → Lambda necesita la tabla → API Gateway necesita Lambda y Cognito.
 - **Callback/logout URLs de Cognito:** se arman añadiendo `/` a cada origen. Cognito exige coincidencia **exacta** con la URL de retorno (con `/` al final), mientras que CORS exige **sin** `/`. Por eso usamos la misma lista con dos formatos.
-- **`aws_lambda_permission` (x2):** por defecto AWS no deja que API Gateway invoque una Lambda. Estos permisos autorizan explícitamente a `apigateway.amazonaws.com` a llamar cada función, limitado a nuestra API (`source_arn`).
+- **`aws_lambda_permission` (uno por cada una de las tres funciones):** por defecto AWS no deja que API Gateway invoque una Lambda. Estos permisos autorizan explícitamente a `apigateway.amazonaws.com` a llamar cada función, limitado a nuestra API (`source_arn`).
 
 ## 4. Módulo `dynamodb`: la base de datos
 
@@ -102,7 +102,7 @@ Salida importante `issuer`: la URL que identifica quién emite los tokens. API G
 | `archive_file` | Empaqueta `backend/` en un zip y excluye `scripts/`, `tests/` y `requirements-dev.txt` | Zip más pequeño y no se sube código que no corre en producción |
 | `locals.functions` | Define tres funciones, `catalog`, `interactions` y `library`, con su handler y sus permisos | Un solo bloque genera las tres con `for_each`, sin repetir código |
 | `aws_iam_role` (uno por función) | Identidad con la que corre cada Lambda | Mínimo privilegio y aislamiento |
-| `aws_iam_role_policy` | Qué puede hacer ese rol | **`catalog` solo lee** (`GetItem`, `Query`). **`personal` además escribe y borra**. Ambas solo sobre nuestra tabla y sus índices, y solo escribir logs en su propio grupo |
+| `aws_iam_role_policy` | Qué puede hacer ese rol | `catalog` solo lee; `interactions` puede leer/escribir y actualizar; `library` puede leer/escribir. Cada rol se limita a nuestra tabla/índices y a su propio grupo de logs. |
 | `aws_cloudwatch_log_group` | Grupo de logs de cada función con retención de 7 días | Lo creamos nosotros para controlar la retención; si no, AWS lo crea con retención infinita |
 | `aws_lambda_function` | La función en sí | Ver parámetros abajo |
 
@@ -122,7 +122,7 @@ Parámetros de la función:
 | `aws_apigatewayv2_api` (HTTP API) | La API pública | HTTP API es **más barata y rápida** que REST API y nos alcanza |
 | `cors_configuration` | Permite llamadas solo desde `allowed_origins`, con métodos `GET/PUT/DELETE/OPTIONS` y encabezados `authorization` y `content-type` | El navegador bloquea llamadas entre sitios; esto lo autoriza solo para nuestro frontend |
 | `aws_apigatewayv2_authorizer` (JWT) | Valida el token de Cognito (emisor, audiencia, firma, caducidad) | La validación ocurre **antes** de ejecutar Lambda: peticiones inválidas no consumen cómputo |
-| Dos `integration` tipo `AWS_PROXY` | Conectan la API con cada Lambda | El evento HTTP completo pasa a la función |
+| Tres `integration` tipo `AWS_PROXY` | Conectan la API con cada Lambda (`catalog`, `interactions`, `library`) | El evento HTTP completo pasa a la función correspondiente |
 | `aws_apigatewayv2_route` con `for_each` | Una ruta por cada endpoint de la lista `locals.routes` | Agregar un endpoint es agregar una línea |
 | Regla de rutas | Cada ruta del mapa `routes` indica su función (`catalog`, `interactions` o `library`) y si exige JWT. Las `/me/*` exigen JWT; el resto son públicas | Catálogo abierto, datos personales protegidos |
 | `aws_apigatewayv2_stage` `$default` con `auto_deploy` | Publica la API automáticamente | Sin pasos manuales de despliegue |
@@ -139,6 +139,7 @@ Parámetros de la función:
 | `default_root_object = index.html` | Archivo que se muestra en `/` | Página inicial |
 | `viewer_protocol_policy = redirect-to-https` | Fuerza HTTPS | Seguridad |
 | `compress = true` | Comprime archivos | Menos transferencia, más rápido y barato |
+| `forwarded_values` | No reenvía query strings ni cookies al origen | Es la configuración heredada que usa actualmente este proyecto; funciona. CloudFront recomienda migrar a cache policies en una mejora posterior. |
 | `price_class = PriceClass_100` | Usa solo las ubicaciones más baratas (NA y Europa) | Ahorro de costo; para la escuela sobra |
 | `custom_error_response` 403/404 → `/index.html` | Cualquier ruta desconocida devuelve la app | React maneja las rutas en el navegador (SPA); sin esto, recargar una ruta daría error |
 | `viewer_certificate` por defecto | Certificado de `*.cloudfront.net` | Gratis; un dominio propio requeriría Route 53 y ACM |
@@ -146,16 +147,15 @@ Parámetros de la función:
 
 ## 9. Módulo `cloudwatch`: alarmas (opcional)
 
-Todo está condicionado a `enable_alarms` (apagado). Si se enciende:
+Solo las alarmas y los recursos SNS están condicionados a `enable_alarms` (apagado). El dashboard no está condicionado y se crea siempre. Si se activan las alarmas:
 
 | Recurso | Qué hace |
 |---|---|
-| Alarma `errors` por Lambda | Se dispara si hay ≥1 error en dos periodos de 5 min seguidos (evita falsas alarmas por un error aislado) |
-| Alarma `throttles` por Lambda | Se dispara si AWS limita las ejecuciones |
+| Alarma `errors` por Lambda | Se dispara con ≥1 error en un periodo de 5 min (`evaluation_periods = 1`) |
 | `treat_missing_data = notBreaching` | Sin tráfico no es una falla |
 | `aws_sns_topic` + suscripción por correo | Envía el aviso al correo, solo si se configuró `alarm_email` |
 
-Por qué apagadas: cada alarma tiene costo mensual, y en una app escolar sin tráfico no aportan. Para demostrar observabilidad se pueden encender antes de presentar.
+No hay alarma de throttles configurada. Las alarmas están apagadas por costo; el dashboard `music-vault-dev-overview` muestra métricas de las tres Lambdas, API Gateway, DynamoDB y métricas propias.
 
 ## 10. `outputs.tf`: datos finales
 
@@ -176,7 +176,7 @@ dynamodb ─────────────┐
                       ├─► lambda ──┐
 cognito ──────────────┼────────────┼─► api_gateway ─► lambda_permission
                       │            │
-hosting (independiente)            └─► cloudwatch (alarmas, opcional)
+hosting (independiente)            └─► cloudwatch (dashboard siempre; alarmas opcionales)
 ```
 
 ## 12. Resumen de decisiones de costo
@@ -185,7 +185,7 @@ hosting (independiente)            └─► cloudwatch (alarmas, opcional)
 |---|---|
 | DynamoDB on-demand, sin PITR, índice parcial | Sin cargos fijos |
 | HTTP API en vez de REST | Aprox. 70 % más barata |
-| 2 Lambdas, 256 MB, timeout 10 s | Menos cómputo |
+| 3 Lambdas, 256 MB, timeout 10 s | Funciones aisladas con recursos mínimos por caso de uso |
 | Logs a 7 días, access logs y alarmas apagados | Sin ingesta ni alarmas |
 | CloudFront `PriceClass_100` y certificado por defecto | Sin dominio ni certificados de pago |
 | Estado local | Sin bucket ni tabla de bloqueo |
@@ -203,3 +203,5 @@ hosting (independiente)            └─► cloudwatch (alarmas, opcional)
 **¿Es seguro mostrar los IDs de Cognito y la URL de la API?** Sí, son públicos por diseño. La seguridad está en el JWT y los permisos IAM, no en ocultar esos valores.
 
 **¿Y si perdemos `terraform.tfstate`?** Terraform no sabrá qué creó y habría que importarlo o borrar los recursos a mano. Por eso hay que conservarlo hasta el `destroy`.
+
+El estado local es suficiente para el despliegue escolar de una persona. Para trabajo concurrente de un equipo conviene migrar a un backend remoto con cifrado, versionado y bloqueo de estado.
