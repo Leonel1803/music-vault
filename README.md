@@ -52,6 +52,8 @@ El perfil predeterminado es para una entrega escolar de bajo tráfico: estado Te
 
 ## Documentación
 
+- [Infraestructura para principiantes](./docs/infraestructura-para-principiantes.md)
+- [Lenguaje de Terraform para principiantes](./docs/lenguaje-terraform-para-principiantes.md)
 - [Guía del equipo y guion de presentación](./docs/guia-del-equipo.md)
 - [Terraform explicado por qué cada recurso](./docs/terraform-explicado.md)
 - [Arquitectura y decisiones](./docs/arquitectura.md)

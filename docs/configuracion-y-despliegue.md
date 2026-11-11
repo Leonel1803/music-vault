@@ -12,7 +12,7 @@ No ejecutar despliegues en una cuenta compartida sin autorización y revisión d
 
 ## Variables de frontend
 
-Copiar `frontend/.env.example` a `.env.local`:
+Para desarrollo local, copia `frontend/.env.example` a `frontend/.env.local`. Para publicar con `npm run build`, configura los valores del despliegue en `frontend/.env.production.local`:
 
 | Variable | Descripción |
 |---|---|
@@ -25,19 +25,56 @@ Copiar `frontend/.env.example` a `.env.local`:
 
 Las URLs de callback/salida deben coincidir exactamente con las configuradas en el App Client.
 
+### Obtener valores para el frontend publicado
+
+Después del primer `terraform apply`, ejecuta estos comandos desde la carpeta `frontend` para consultar los outputs del estado local de Terraform:
+
+```powershell
+terraform "-chdir=..\terraform" output -raw api_base_url
+terraform "-chdir=..\terraform" output -raw cognito_user_pool_id
+terraform "-chdir=..\terraform" output -raw cognito_app_client_id
+terraform "-chdir=..\terraform" output -raw cognito_domain
+terraform "-chdir=..\terraform" output -raw cloudfront_domain_name
+```
+
+Copia cada resultado a `frontend/.env.production.local` como sigue:
+
+```dotenv
+VITE_API_BASE_URL=<api_base_url>
+VITE_COGNITO_USER_POOL_ID=<cognito_user_pool_id>
+VITE_COGNITO_USER_POOL_CLIENT_ID=<cognito_app_client_id>
+VITE_COGNITO_DOMAIN=<cognito_domain>
+VITE_COGNITO_REDIRECT_SIGN_IN=https://<cloudfront_domain_name>/
+VITE_COGNITO_REDIRECT_SIGN_OUT=https://<cloudfront_domain_name>/
+```
+
+Reemplaza los marcadores completos, incluidos `<` y `>`. El dominio de Cognito va sin `https://`; las URLs de retorno y salida incluyen `https://` y la barra final. El archivo es local: no lo subas a Git ni incluyas secretos en variables `VITE_`, ya que sus valores se incorporan al código público del navegador.
+
+Antes de probar el inicio de sesión, añade `https://<cloudfront_domain_name>` **sin barra final** a `allowed_origins` en `terraform.tfvars`, conservando los otros orígenes necesarios, y ejecuta el segundo `terraform apply`. Terraform agrega la barra final al registrar las URLs de retorno y salida en Cognito.
+
+Vite incorpora estas variables al construir el frontend. Después de cambiarlas, ejecuta de nuevo `npm run build`, publica `dist` e invalida CloudFront siguiendo los comandos de publicación. Las variables del entorno de PowerShell con el mismo nombre tienen prioridad sobre los archivos `.env`.
+
 ## Backend
 
 `backend/src/handler.py` expone handlers que reciben evento HTTP API v2. Configurar `TABLE_NAME` y `LOG_LEVEL` desde Terraform. Para pruebas unitarias no se requiere AWS; para invocar DynamoDB localmente se puede usar un perfil AWS explícito o LocalStack (no se configura automáticamente).
 
-Para datos ficticios únicamente en desarrollo, con credenciales AWS ya configuradas y el nombre de la tabla correcto:
+### Carga del catálogo de prueba
+
+Después de crear la tabla con Terraform, carga el catálogo ficticio de artistas, álbumes y canciones. Se necesitan credenciales AWS configuradas con permisos de escritura en la tabla. Desde la carpeta `frontend`, ejecuta:
 
 ```powershell
-cd backend
+Set-Location ..\backend
 python -m pip install -r requirements-dev.txt
-python scripts/seed_catalog.py --table music-vault-dev-data
+python scripts\seed_catalog.py --table music-vault-dev-data --region us-east-2
 ```
 
-El script es idempotente para los IDs de muestra y no se debe usar para poblar ambientes productivos.
+El script muestra cuántos elementos cargó. Para verificar hasta diez elementos evaluados de la tabla:
+
+```powershell
+aws dynamodb scan --table-name music-vault-dev-data --region us-east-2 --limit 10
+```
+
+Estos comandos usan el nombre de tabla del entorno `dev`; ajústalo si cambiaste el nombre del proyecto o el entorno. El script es idempotente para los IDs de muestra, pero sobrescribe los elementos existentes con las mismas claves. Úsalo solo en desarrollo, no para poblar ambientes productivos.
 
 ## Terraform
 
@@ -56,7 +93,7 @@ Para este proyecto individual de escuela Terraform usa **estado local**: no crea
 
 3. Revisa recursos y costo estimado antes de aplicar. `terraform apply tfplan` crea recursos facturables. El estado local (`terraform.tfstate`) está ignorado por Git; consérvalo en una ubicación privada, no lo compartas y no lo elimines mientras administras recursos existentes.
 4. Tras conocer el dominio CloudFront, añade `https://<dominio-cloudfront>` a `allowed_origins` en `terraform.tfvars` y aplica Terraform otra vez para registrar los callback/logout de Cognito y permitir el origen en API Gateway. No retires el callback local mientras lo uses en desarrollo.
-5. Copia los outputs de Cognito y API Gateway a `frontend/.env.local`; construye el frontend con esos valores.
+5. Copia los outputs de Cognito y API Gateway a `frontend/.env.production.local` como se describe en **Obtener valores para el frontend publicado**.
 6. Despliega el frontend: `npm run build`, sincroniza `frontend/dist` con el bucket privado mediante el flujo de publicación autorizado y realiza invalidación CloudFront cuando corresponda.
 7. Ejecuta las pruebas de humo descritas abajo y elimina recursos de desarrollo con `terraform destroy` solo tras revisar el plan de destrucción y preservar datos necesarios.
 
@@ -69,9 +106,12 @@ $bucket = terraform "-chdir=..\terraform" output -raw frontend_bucket_name
 aws s3 sync .\dist "s3://$bucket" --delete
 $distribution = terraform "-chdir=..\terraform" output -raw cloudfront_distribution_id
 aws cloudfront create-invalidation --distribution-id $distribution --paths "/*"
+
+$domain = terraform "-chdir=..\terraform" output -raw cloudfront_domain_name
+"https://$domain"
 ```
 
-El primer despliegue requiere establecer outputs de Cognito/API antes de crear el `.env.local` del frontend. La SPA debe subirse después de configurar esos valores.
+La SPA debe construirse y subirse después de configurar los valores de producción.
 
 ## Verificación de humo
 
